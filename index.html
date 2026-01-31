@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Currency Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+
+  <body class="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <div class="w-full max-w-lg bg-white rounded-2xl shadow p-6 space-y-5">
+      <h1 class="text-xl font-semibold text-slate-900">Конвертер валют</h1>
+
+      <!-- Amount -->
+      <div class="space-y-2">
+        <label for="amount" class="text-sm font-medium text-slate-700"
+          >Сумма</label
+        >
+        <input
+          id="amount"
+          type="number"
+          inputmode="decimal"
+          placeholder="Например: 100"
+          class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400"
+        />
+        <p id="hint" class="text-xs text-slate-500">Введите число больше 0.</p>
+      </div>
+
+      <!-- From / To -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label for="from" class="text-sm font-medium text-slate-700"
+            >Из</label
+          >
+          <select
+            id="from"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400"
+          ></select>
+        </div>
+
+        <div class="space-y-2">
+          <label for="to" class="text-sm font-medium text-slate-700">В</label>
+          <select
+            id="to"
+            class="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400"
+          ></select>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex flex-col sm:flex-row gap-3">
+        <button
+          id="convertBtn"
+          class="flex-1 rounded-xl bg-slate-900 text-white px-4 py-3 font-medium hover:bg-slate-800 active:scale-[0.99]"
+        >
+          Конвертировать
+        </button>
+
+        <button
+          id="swapBtn"
+          class="rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-900 hover:bg-slate-100 active:scale-[0.99]"
+          type="button"
+          title="Поменять валюты местами"
+        >
+          ⇄ Swap
+        </button>
+      </div>
+
+      <!-- Result -->
+      <div
+        id="result"
+        class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4"
+      >
+        <p class="text-sm text-slate-600">Результат</p>
+        <p
+          id="resultText"
+          class="mt-1 text-lg font-semibold text-slate-900"
+        ></p>
+        <p id="rateText" class="mt-1 text-xs text-slate-500"></p>
+      </div>
+
+      <!-- Message -->
+      <div id="message" class="text-sm"></div>
+    </div>
+
+    <script>
+      // --- 1) Курсы (примерные, фиксированные) ---
+      // Это "сколько USD стоит 1 единица валюты"
+      const ratesToUSD = {
+        USD: 1,
+        EUR: 1.09,
+        GBP: 1.27,
+        PLN: 0.25,
+        NOK: 0.095,
+      };
+
+      const currencyMeta = {
+        USD: { symbol: "$", locale: "en-US" },
+        EUR: { symbol: "€", locale: "lt-LT" },
+        GBP: { symbol: "£", locale: "en-GB" },
+        PLN: { symbol: "zł", locale: "pl-PL" },
+        NOK: { symbol: "kr", locale: "nb-NO" },
+      };
+
+      // --- 2) DOM ---
+      const amountEl = document.getElementById("amount");
+      const fromEl = document.getElementById("from");
+      const toEl = document.getElementById("to");
+      const convertBtn = document.getElementById("convertBtn");
+      const swapBtn = document.getElementById("swapBtn");
+      const resultBox = document.getElementById("result");
+      const resultText = document.getElementById("resultText");
+      const rateText = document.getElementById("rateText");
+      const message = document.getElementById("message");
+
+      // --- 3) Заполняем селекты ---
+      const codes = Object.keys(ratesToUSD);
+
+      function fillSelect(select, selected) {
+        select.innerHTML = "";
+        codes.forEach((code) => {
+          const opt = document.createElement("option");
+          opt.value = code;
+          opt.textContent = code;
+          if (code === selected) opt.selected = true;
+          select.appendChild(opt);
+        });
+      }
+
+      fillSelect(fromEl, "EUR");
+      fillSelect(toEl, "USD");
+
+      // --- 4) Форматирование валюты ---
+      function formatMoney(value, code) {
+        const meta = currencyMeta[code] || { locale: "en-US" };
+        return new Intl.NumberFormat(meta.locale, {
+          style: "currency",
+          currency: code,
+          maximumFractionDigits: 2,
+        }).format(value);
+      }
+
+      // --- 5) Конвертация ---
+      function convert(amount, from, to) {
+        // amount * (from->USD) / (to->USD) ??? нет
+        // Правильно: amount * USD_per_from / USD_per_to
+        const usdPerFrom = ratesToUSD[from];
+        const usdPerTo = ratesToUSD[to];
+        return amount * (usdPerFrom / usdPerTo);
+      }
+
+      function showMessage(text, type = "info") {
+        const base = "rounded-xl px-4 py-3";
+        const styles =
+          type === "error"
+            ? "bg-rose-50 text-rose-800 border border-rose-200"
+            : type === "success"
+            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+            : "bg-slate-100 text-slate-800 border border-slate-200";
+
+        message.className = `${base} ${styles}`;
+        message.textContent = text;
+      }
+
+      function clearMessage() {
+        message.className = "";
+        message.textContent = "";
+      }
+
+      function handleConvert() {
+        clearMessage();
+
+        const amount = Number(amountEl.value);
+        const from = fromEl.value;
+        const to = toEl.value;
+
+        if (!Number.isFinite(amount) || amount <= 0) {
+          resultBox.classList.add("hidden");
+          showMessage("Введите сумму больше 0.", "error");
+          amountEl.focus();
+          return;
+        }
+
+        const converted = convert(amount, from, to);
+
+        const left = formatMoney(amount, from);
+        const right = formatMoney(converted, to);
+
+        // Показ результата
+        resultText.textContent = `${left} → ${right}`;
+
+        // Показ курса (сколько "to" за 1 "from")
+        const rate = convert(1, from, to);
+        rateText.textContent = `Курс: 1 ${from} = ${rate.toFixed(4)} ${to}`;
+
+        resultBox.classList.remove("hidden");
+
+        // Сообщение
+        showMessage(`Вы ввели ${left}. Это примерно ${right}.`, "success");
+      }
+
+      function swapCurrencies() {
+        const tmp = fromEl.value;
+        fromEl.value = toEl.value;
+        toEl.value = tmp;
+
+        // если уже есть сумма, пересчитаем автоматически
+        if (amountEl.value.trim() !== "") handleConvert();
+      }
+
+      convertBtn.addEventListener("click", handleConvert);
+      swapBtn.addEventListener("click", swapCurrencies);
+
+      // Удобство: Enter в инпуте запускает конвертацию
+      amountEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") handleConvert();
+      });
+    </script>
+  </body>
+</html>
